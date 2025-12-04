@@ -91,8 +91,8 @@ struct ProgressWindow: View {
                 }
             }
         }
-        .padding(20)
-        .frame(minWidth: 400, minHeight: 200)
+        .padding(12)
+        .frame(minWidth: 300, minHeight: 144)
         .background(Color(NSColor.windowBackgroundColor))
         .cornerRadius(8)
         .shadow(radius: 12)
@@ -148,8 +148,9 @@ struct ProgressWindowModifier: ViewModifier {
                                     // 点击背景不关闭窗口
                                 }
                             
-                            // 进度窗口
+                            // 进度窗口 - 确保居中并保持自身尺寸
                             ProgressWindow(progressInfo: $progressInfo, onCancel: onCancel)
+                                .fixedSize()
                                 .background(RoundedRectangle(cornerRadius: 8)
                                     .fill(Color(NSColor.windowBackgroundColor)))
                         }

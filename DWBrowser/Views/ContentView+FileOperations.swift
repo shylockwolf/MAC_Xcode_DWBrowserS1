@@ -318,69 +318,32 @@ extension ContentView {
             return
         }
         
-        let alert = NSAlert()
-        if itemsToTrash.count == 1 {
-            alert.messageText = "移到垃圾箱"
-            alert.informativeText = "确定要将文件移到垃圾箱吗？\n\n您可以从垃圾箱中恢复此文件。"
-        } else {
-            alert.messageText = "移到垃圾箱"
-            alert.informativeText = "确定要将选中的 \(itemsToTrash.count) 个项目移到垃圾箱吗？\n\n您可以从垃圾箱中恢复这些文件。"
-        }
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "移到垃圾箱")
-        alert.addButton(withTitle: "取消")
-        
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            DispatchQueue.global(qos: .userInitiated).async {
-                var successCount = 0
-                var errorMessages: [String] = []
-                
-                for itemURL in itemsToTrash {
-                    if FileOperationService.moveItemToTrashSync(itemURL) {
-                        print("✅ 成功移到垃圾箱: \(itemURL.lastPathComponent)")
-                        successCount += 1
-                    } else {
-                        let errorMessage = "\(itemURL.lastPathComponent): 移动失败"
-                        errorMessages.append(errorMessage)
-                        print("❌ 移到垃圾箱失败: \(itemURL.lastPathComponent)")
-                    }
+        DispatchQueue.global(qos: .userInitiated).async {
+            var successCount = 0
+            var errorMessages: [String] = []
+            
+            for itemURL in itemsToTrash {
+                if FileOperationService.moveItemToTrashSync(itemURL) {
+                    print("✅ 成功移到垃圾箱: \(itemURL.lastPathComponent)")
+                    successCount += 1
+                } else {
+                    let errorMessage = "\(itemURL.lastPathComponent): 移动失败"
+                    errorMessages.append(errorMessage)
+                    print("❌ 移到垃圾箱失败: \(itemURL.lastPathComponent)")
+                }
+            }
+            
+            DispatchQueue.main.async {
+                if successCount > 0 {
+                    let message = itemsToTrash.count == 1 ?
+                        "成功将 \(successCount) 个文件移到垃圾箱" :
+                        "成功将 \(successCount) 个文件移到垃圾箱（共 \(itemsToTrash.count) 个）"
+                    print("✅ \(message)")
                 }
                 
-                DispatchQueue.main.async {
-                    if successCount > 0 {
-                        let message = itemsToTrash.count == 1 ?
-                            "成功将 \(successCount) 个文件移到垃圾箱" :
-                            "成功将 \(successCount) 个文件移到垃圾箱（共 \(itemsToTrash.count) 个）"
-                        print("✅ \(message)")
-                        
-                        let successAlert = NSAlert()
-                        successAlert.messageText = "操作完成"
-                        successAlert.informativeText = message + "\n\n您可以在垃圾箱中找到这些文件并进行恢复。"
-                        successAlert.alertStyle = .informational
-                        successAlert.addButton(withTitle: "确定")
-                        successAlert.addButton(withTitle: "打开垃圾箱")
-                        
-                        let successResponse = successAlert.runModal()
-                        if successResponse == .alertSecondButtonReturn {
-                            do {
-                                let trashURL = try FileManager.default.url(for: .trashDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
-                                NSWorkspace.shared.open(trashURL)
-                            } catch {
-                                print("❌ 无法打开垃圾箱: \(error.localizedDescription)")
-                            }
-                        }
-                    }
-                    
-                    if !errorMessages.isEmpty {
-                        let fullMessage = "移动过程中发生以下错误：\n\n" + errorMessages.joined(separator: "\n")
-                        self.showAlertSimple(title: "部分移动失败", message: fullMessage)
-                    }
-                    
-                    self.viewModel.clearAllSelections()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        self.viewModel.triggerRefresh()
-                    }
+                self.viewModel.clearAllSelections()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.viewModel.triggerRefresh()
                 }
             }
         }

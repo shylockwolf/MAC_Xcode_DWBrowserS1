@@ -124,13 +124,31 @@ extension ContentView {
         
         print("🔌 开始批量推出 \(externalDevices.count) 个设备")
         
+        // 显示进度窗口
+        DispatchQueue.main.async {
+            self.progressInfo = ProgressInfo(
+                title: "正在推出所有设备",
+                progress: 0.0,
+                bytesPerSecond: 0.0,
+                estimatedTimeRemaining: 0.0
+            )
+            self.isProgressWindowPresented = true
+        }
+        
         DispatchQueue.global(qos: .userInitiated).async {
             var successCount = 0
             var errorDevices: [(device: ExternalDevice, error: String)] = []
+            let totalDevices = self.externalDevices.count
             
-            for device in self.externalDevices {
+            for (index, device) in self.externalDevices.enumerated() {
                 print("🔌 开始推出设备: \(device.name)")
                 print("🔌 挂载点: \(device.mountPoint)")
+                
+                // 更新进度信息
+                DispatchQueue.main.async {
+                    self.progressInfo.title = "正在推出设备: \(device.name)"
+                    self.progressInfo.progress = Double(index) / Double(totalDevices)
+                }
                 
                 if !FileManager.default.fileExists(atPath: device.mountPoint) {
                     print("⚠️ 设备挂载点不存在: \(device.name)")
@@ -174,6 +192,17 @@ extension ContentView {
                         print("❌ 执行diskutil命令失败: \(device.name) - \(error.localizedDescription)")
                         errorDevices.append((device: device, error: error.localizedDescription))
                     }
+                }
+            }
+            
+            // 更新最终进度
+            DispatchQueue.main.async {
+                self.progressInfo.progress = 1.0
+                self.progressInfo.title = "推出完成"
+                
+                // 所有设备都推出完成后，自动关闭窗口
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.isProgressWindowPresented = false
                 }
             }
             
