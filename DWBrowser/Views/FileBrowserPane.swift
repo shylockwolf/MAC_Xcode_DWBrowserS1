@@ -35,6 +35,14 @@ struct FileBrowserPane: View {
     @State private var typeColumnWidth: CGFloat = 80
     @State private var sizeColumnWidth: CGFloat = 60
     @State private var dateColumnWidth: CGFloat = 120
+    // 计算内容区域的最小宽度，用于触发横向滚动
+    private var contentMinWidth: CGFloat {
+        let base: CGFloat = 20 + 20 + nameColumnWidth
+        let typePart: CGFloat = showFileType ? (3 + typeColumnWidth) : 0
+        let sizePart: CGFloat = showFileSize ? (3 + sizeColumnWidth) : 0
+        let datePart: CGFloat = showFileDate ? dateColumnWidth : 0
+        return base + typePart + sizePart + datePart + 24
+    }
     
     private func isDirectory(_ url: URL) -> Bool {
         let resolvedURL = url.resolvingSymlinksInPath()
@@ -501,268 +509,276 @@ struct FileBrowserPane: View {
                 
                 Divider()
                 
-                // 表头 - 可调节大小的列标题
-                HStack(spacing: 8) {
-                    // 复选框占位空间
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(width: 20)
-                    
-                    // 图标占位空间
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(width: 20)
-                    
-                    // 文件名列
-                    HStack {
-                        Text("文件名")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                        Spacer()
-                    }
-                    .frame(width: nameColumnWidth)
-                    .background(Color(.controlBackgroundColor))
-                    .onHover { isHovering in
-                        if isHovering {
-                            NSCursor.pointingHand.set()
-                        } else {
-                            NSCursor.arrow.set()
-                        }
-                    }
-                    
-                    // 分隔线和拖拽区域
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.6))
-                        .frame(width: 3)
-                        .contentShape(Rectangle())
-                        .onHover { isHovering in
-                            if isHovering {
-                                NSCursor.resizeLeftRight.set()
-                            } else {
-                                NSCursor.arrow.set()
-                            }
-                        }
-                        .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    nameColumnWidth = max(100, nameColumnWidth + value.translation.width)
-                                }
-                        )
-                        .help("拖拽调节列宽")
-                    
-                    // 类型列
-                    if showFileType {
-                        HStack {
-                            Text("类型")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-                            Spacer()
-                        }
-                        .frame(width: typeColumnWidth, alignment: .trailing)
-                        .background(Color(.controlBackgroundColor))
-                        .onHover { isHovering in
-                            if isHovering {
-                                NSCursor.pointingHand.set()
-                            } else {
-                                NSCursor.arrow.set()
-                            }
-                        }
-                        
-                        // 分隔线和拖拽区域
+                // 文件列表（支持横向滚动）
+                ScrollView(.horizontal, showsIndicators: true) {
+                    VStack(spacing: 0) {
+                        // 表头 - 可调节大小的列标题
+                        HStack(spacing: 8) {
+                        // 复选框占位空间
                         Rectangle()
-                            .fill(Color.gray.opacity(0.6))
-                            .frame(width: 3)
-                            .contentShape(Rectangle())
-                            .onHover { isHovering in
-                                if isHovering {
-                                    NSCursor.resizeLeftRight.set()
-                                } else {
-                                    NSCursor.arrow.set()
-                                }
-                            }
-                            .gesture(
-                                DragGesture()
-                                    .onChanged { value in
-                                        typeColumnWidth = max(40, typeColumnWidth + value.translation.width)
-                                    }
-                            )
-                            .help("拖拽调节列宽")
-                    }
-                    
-                    // 大小列
-                    if showFileSize {
-                        HStack {
-                            Text("大小")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-                            Spacer()
-                        }
-                        .frame(width: sizeColumnWidth)
-                        .background(Color(.controlBackgroundColor))
-                        .onHover { isHovering in
-                            if isHovering {
-                                NSCursor.pointingHand.set()
-                            } else {
-                                NSCursor.arrow.set()
-                            }
-                        }
-                        
-                        // 分隔线和拖拽区域
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.6))
-                            .frame(width: 3)
-                            .contentShape(Rectangle())
-                            .onHover { isHovering in
-                                if isHovering {
-                                    NSCursor.resizeLeftRight.set()
-                                } else {
-                                    NSCursor.arrow.set()
-                                }
-                            }
-                            .gesture(
-                                DragGesture()
-                                    .onChanged { value in
-                                        sizeColumnWidth = max(40, sizeColumnWidth + value.translation.width)
-                                    }
-                            )
-                            .help("拖拽调节列宽")
-                    }
-                    
-                    // 日期列
-                    if showFileDate {
-                        HStack {
-                            Text("日期")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-                            Spacer()
-                        }
-                        .frame(width: dateColumnWidth, alignment: .trailing)
-                        .background(Color(.controlBackgroundColor))
-                        .onHover { isHovering in
-                            if isHovering {
-                                NSCursor.pointingHand.set()
-                            } else {
-                                NSCursor.arrow.set()
-                            }
-                        }
-                    }
-                    
-                    Spacer()
-                }
-                .frame(height: 28)
-                .background(Color(.controlBackgroundColor))
-                .overlay(
-                    Rectangle()
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
-                )
-                
-                Divider()
-                
-                // 文件列表
-                List(items, id: \.self) { item in
-                    HStack(spacing: 8) {
-                        // 多选复选框
-                        Button(action: {
-                            if selectedItems.contains(item) {
-                                selectedItems.remove(item)
-                            } else {
-                                selectedItems.insert(item)
-                            }
-                        }) {
-                            Image(systemName: selectedItems.contains(item) ? "checkmark.square.fill" : "square")
-                                .foregroundColor(selectedItems.contains(item) ? .accentColor : .gray)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .frame(width: 20)
-                        
-                        // 文件图标
-                        Image(systemName: isDirectory(item) ? "folder" : "doc")
-                            .foregroundColor(isDirectory(item) ? .blue : .gray)
+                            .fill(Color.clear)
                             .frame(width: 20)
                         
-                        // 文件名
-                        Text(item.lastPathComponent)
-                            .foregroundColor(selectedItems.contains(item) ? Color.accentColor : .primary)
-                            .frame(width: nameColumnWidth, alignment: .leading)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                        // 图标占位空间
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 20)
                         
-                        // 文件类型
+                        // 文件名列
+                        HStack {
+                            Text("文件名")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            Spacer()
+                        }
+                        .frame(width: nameColumnWidth)
+                        .background(Color(.controlBackgroundColor))
+                        .onHover { isHovering in
+                            if isHovering {
+                                NSCursor.pointingHand.set()
+                            } else {
+                                NSCursor.arrow.set()
+                            }
+                        }
+                        
+                        // 分隔线和拖拽区域
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.6))
+                            .frame(width: 3)
+                            .contentShape(Rectangle())
+                            .onHover { isHovering in
+                                if isHovering {
+                                    NSCursor.resizeLeftRight.set()
+                                } else {
+                                    NSCursor.arrow.set()
+                                }
+                            }
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { value in
+                                        nameColumnWidth = max(100, nameColumnWidth + value.translation.width)
+                                    }
+                            )
+                            .help("拖拽调节列宽")
+                        
+                        // 类型列
                         if showFileType {
-                            Text(getFileType(item))
-                                .font(.system(.caption))
-                                .foregroundColor(.secondary)
-                                .frame(width: typeColumnWidth, alignment: .trailing)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
+                            HStack {
+                                Text("类型")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                            }
+                            .frame(width: typeColumnWidth, alignment: .trailing)
+                            .background(Color(.controlBackgroundColor))
+                            .onHover { isHovering in
+                                if isHovering {
+                                    NSCursor.pointingHand.set()
+                                } else {
+                                    NSCursor.arrow.set()
+                                }
+                            }
+                            
+                            // 分隔线和拖拽区域
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.6))
+                                .frame(width: 3)
+                                .contentShape(Rectangle())
+                                .onHover { isHovering in
+                                    if isHovering {
+                                        NSCursor.resizeLeftRight.set()
+                                    } else {
+                                        NSCursor.arrow.set()
+                                    }
+                                }
+                                .gesture(
+                                    DragGesture()
+                                        .onChanged { value in
+                                            typeColumnWidth = max(40, typeColumnWidth + value.translation.width)
+                                        }
+                                )
+                                .help("拖拽调节列宽")
                         }
                         
-                        // 文件大小
+                        // 大小列
                         if showFileSize {
-                            Text(isDirectory(item) ? "" : formatFileSize(getFileSize(item)))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .frame(width: sizeColumnWidth, alignment: .trailing)
+                            HStack {
+                                Text("大小")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                            }
+                            .frame(width: sizeColumnWidth)
+                            .background(Color(.controlBackgroundColor))
+                            .onHover { isHovering in
+                                if isHovering {
+                                    NSCursor.pointingHand.set()
+                                } else {
+                                    NSCursor.arrow.set()
+                                }
+                            }
+                            
+                            // 分隔线和拖拽区域
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.6))
+                                .frame(width: 3)
+                                .contentShape(Rectangle())
+                                .onHover { isHovering in
+                                    if isHovering {
+                                        NSCursor.resizeLeftRight.set()
+                                    } else {
+                                        NSCursor.arrow.set()
+                                    }
+                                }
+                                .gesture(
+                                    DragGesture()
+                                        .onChanged { value in
+                                            sizeColumnWidth = max(40, sizeColumnWidth + value.translation.width)
+                                        }
+                                )
+                                .help("拖拽调节列宽")
                         }
                         
-                        // 修改日期
+                        // 日期列
                         if showFileDate {
-                            Text(getFileDate(item))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .frame(width: dateColumnWidth, alignment: .trailing)
+                            HStack {
+                                Text("日期")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                            }
+                            .frame(width: dateColumnWidth, alignment: .trailing)
+                            .background(Color(.controlBackgroundColor))
+                            .onHover { isHovering in
+                                if isHovering {
+                                    NSCursor.pointingHand.set()
+                                } else {
+                                    NSCursor.arrow.set()
+                                }
+                            }
                         }
                         
                         Spacer()
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        // 简化的文件点击处理
-                        handleFileClick(item: item)
-                    }
-                    .onDrag {
-                        if isDirectory(item) {
-                            print("🎯 开始拖拽目录: \(item.lastPathComponent)")
-                            return NSItemProvider(object: item as NSURL)
-                        } else {
-                            print("🚫 文件不支持拖拽: \(item.lastPathComponent)")
-                            return NSItemProvider()
                         }
-                    }
-                    .contextMenu {
-                        Button(action: {
-                            selectedItems.insert(item)
-                        }) {
-                            Text("选中")
-                        }
+                        .frame(minWidth: contentMinWidth, alignment: .leading)
+                        .frame(height: 28)
+                        .background(Color(.controlBackgroundColor))
+                        .overlay(
+                            Rectangle()
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                        )
                         
-                        if selectedItems.contains(item) {
-                            Button(action: {
-                                selectedItems.remove(item)
-                            }) {
-                                Text("取消选中")
-                            }
-                        }
-                        
+                        // 分隔线
                         Divider()
                         
-                        Button(action: {
-                            if isDirectory(item) {
-                                currentURL = item
-                                selectedItems.removeAll()
-                            } else {
-                                NSWorkspace.shared.open(item)
+                        // 文件列表
+                        List(items, id: \.self) { item in
+                        HStack(spacing: 8) {
+                            // 多选复选框
+                            Button(action: {
+                                if selectedItems.contains(item) {
+                                    selectedItems.remove(item)
+                                } else {
+                                    selectedItems.insert(item)
+                                }
+                            }) {
+                                Image(systemName: selectedItems.contains(item) ? "checkmark.square.fill" : "square")
+                                    .foregroundColor(selectedItems.contains(item) ? .accentColor : .gray)
                             }
-                        }) {
-                            Text(isDirectory(item) ? "打开文件夹" : "打开文件")
+                            .buttonStyle(PlainButtonStyle())
+                            .frame(width: 20)
+                            
+                            // 文件图标
+                            Image(systemName: isDirectory(item) ? "folder" : "doc")
+                                .foregroundColor(isDirectory(item) ? .blue : .gray)
+                                .frame(width: 20)
+                            
+                            // 文件名
+                            Text(item.lastPathComponent)
+                                .foregroundColor(selectedItems.contains(item) ? Color.accentColor : .primary)
+                                .frame(width: nameColumnWidth, alignment: .leading)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            
+                            // 文件类型
+                            if showFileType {
+                                Text(getFileType(item))
+                                    .font(.system(.caption))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: typeColumnWidth, alignment: .trailing)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                            
+                            // 文件大小
+                            if showFileSize {
+                                Text(isDirectory(item) ? "" : formatFileSize(getFileSize(item)))
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: sizeColumnWidth, alignment: .trailing)
+                            }
+                            
+                            // 修改日期
+                            if showFileDate {
+                                Text(getFileDate(item))
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: dateColumnWidth, alignment: .trailing)
+                            }
+                            
+                            Spacer()
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            // 简化的文件点击处理
+                            handleFileClick(item: item)
+                        }
+                        .onDrag {
+                            if isDirectory(item) {
+                                print("🎯 开始拖拽目录: \(item.lastPathComponent)")
+                                return NSItemProvider(object: item as NSURL)
+                            } else {
+                                print("🚫 文件不支持拖拽: \(item.lastPathComponent)")
+                                return NSItemProvider()
+                            }
+                        }
+                        .contextMenu {
+                            Button(action: {
+                                selectedItems.insert(item)
+                            }) {
+                                Text("选中")
+                            }
+                            
+                            if selectedItems.contains(item) {
+                                Button(action: {
+                                    selectedItems.remove(item)
+                                }) {
+                                    Text("取消选中")
+                                }
+                            }
+                            
+                            Divider()
+                            
+                            Button(action: {
+                                if isDirectory(item) {
+                                    currentURL = item
+                                    selectedItems.removeAll()
+                                } else {
+                                    NSWorkspace.shared.open(item)
+                                }
+                            }) {
+                                Text(isDirectory(item) ? "打开文件夹" : "打开文件")
+                            }
+                        }
+                        }
+                        .listStyle(.plain)
+                        .frame(minWidth: contentMinWidth, alignment: .leading)
                     }
                 }
-                .listStyle(.plain)
             }
             
             // 透明点击覆盖层 - 放在最顶层，但只有非激活时才显示
@@ -798,5 +814,4 @@ struct FileBrowserPane: View {
         }
     }
 }
-
 

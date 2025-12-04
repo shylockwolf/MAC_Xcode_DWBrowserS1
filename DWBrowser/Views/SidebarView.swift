@@ -235,7 +235,7 @@ struct SidebarView: View {
             
             Spacer()
         }
-        .frame(width: 200)
+        .frame(width: 210)
         .background(Color(white: 0.95))
     }
 }

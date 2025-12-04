@@ -301,289 +301,307 @@ struct ContentView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            MainToolbarView(
-                activePane: viewModel.activePane,
-                selectedCount: viewModel.getCurrentSelectedItems().count,
-                isShowingHiddenFiles: viewModel.activePane == .left ? viewModel.leftShowHiddenFiles : viewModel.rightShowHiddenFiles,
-                onExit: {
-                    NSApplication.shared.terminate(nil)
-                },
-                onSelectPane: { pane in
-                    viewModel.setActivePane(pane)
-                },
-                onCopy: {
-                    copyItem()
-                },
-                onDelete: {
-                    deleteItem()
-                },
-                onMove: {
-                    moveItem()
-                },
-                onClearSelection: {
-                    viewModel.clearAllSelections()
-                },
-                onNewFolder: {
-                    createNewFolder()
-                },
-                onConnectSFTP: {
-                    showSFTPConnectionDialog()
-                },
-                onToggleHiddenFiles: {
-                    if viewModel.activePane == .left {
-                        viewModel.leftShowHiddenFiles.toggle()
-                    } else {
-                        viewModel.rightShowHiddenFiles.toggle()
-                    }
+        mainContentView
+            .onAppear {
+                setupAppearance()
+            }
+            .withProgressWindow(
+                isPresented: $isProgressWindowPresented,
+                progressInfo: $progressInfo,
+                onCancel: { 
+                    print("❌ 操作被用户取消")
+                    // 这里可以添加取消操作的具体逻辑
                 }
             )
-            
+            .overlay(
+                // 复制进度窗口
+                copyProgressOverlay,
+                alignment: .center
+            )
+    }
+    
+    // 主内容视图
+    private var mainContentView: some View {
+        VStack(spacing: 0) {
+            mainToolbarView
             Divider()
-            
-            HStack(spacing: 0) {
-                SidebarView(
-                    activePane: $viewModel.activePane,
-                    leftPaneURL: $leftPaneURL,
-                    rightPaneURL: $rightPaneURL,
-                    externalDevices: $externalDevices,
-                    favorites: $favorites,
-                    onEjectDevice: { device in
-                                    ejectDevice(device: device)
-                    },
-                    onEjectAllDevices: {
-                        ejectAllDevices()
-                    },
-                    onFavoriteRemoved: { favorite in
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        favorites.removeAll { $0.id == favorite.id }
-                                        saveFavorites()
-                                    }
-                    },
-                    onFavoriteReorder: { providers, targetFavorite in
-                        handleFavoriteReorder(providers: providers, targetFavorite: targetFavorite)
-                    },
-                    onDropToFavorites: { providers in
-                        handleDrop(providers: providers)
-                    }
-                )
-                
-                Divider()
-                
-                // 将背景色放在内容之后，确保不会拦截点击事件
-                ZStack {
-                    if viewModel.activePane == .left {
-                        Color.blue.opacity(0.25)
-                    }
-                    
-                    FileBrowserPane(
-                        currentURL: $leftPaneURL, 
-                        showHiddenFiles: $viewModel.leftShowHiddenFiles,
-                        selectedItems: $viewModel.leftSelectedItems,
-                        isActive: viewModel.activePane == .left,
-                        onActivate: { 
-                            print("🔥🔥🔥 左面板被激活了！当前激活: \(viewModel.activePane)")
-                            viewModel.setActivePane(.left)
-                            print("🔥🔥🔥 左面板激活完成！新激活状态: \(viewModel.activePane)")
-                        },
-                        refreshTrigger: viewModel.refreshTrigger,
-                        panelId: "left",
-                        showFileSize: $leftShowFileSize,
-                        showFileDate: $leftShowFileDate,
-                        showFileType: $leftShowFileType
-                    )
-                }
-                .frame(minWidth: 300)
-                
-                Divider()
-                
-                // 将背景色放在内容之后，确保不会拦截点击事件
-                ZStack {
-                    if viewModel.activePane == .right {
-                        Color.blue.opacity(0.25)
-                    }
-                    
-                    FileBrowserPane(
-                        currentURL: $rightPaneURL, 
-                        showHiddenFiles: $viewModel.rightShowHiddenFiles,
-                        selectedItems: $viewModel.rightSelectedItems,
-                        isActive: viewModel.activePane == .right,
-                        onActivate: { 
-                            print("🔥🔥🔥 右面板被激活了！当前激活: \(viewModel.activePane)")
-                            viewModel.setActivePane(.right)
-                            print("🔥🔥🔥 右面板激活完成！新激活状态: \(viewModel.activePane)")
-                        },
-                        refreshTrigger: viewModel.refreshTrigger,
-                        panelId: "right",
-                        showFileSize: $rightShowFileSize,
-                        showFileDate: $rightShowFileDate,
-                        showFileType: $rightShowFileType
-                    )
-                }
-                .frame(minWidth: 300)
-            }
-            .frame(minWidth: 800, maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
+            mainBrowserView
         }
         .frame(minWidth: 800, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
+        .clipped() // 确保内容不会超出容器边界
+        .frame(maxWidth: .infinity, alignment: .leading) // 确保内容左对齐，防止向左偏移
         .onChange(of: leftPaneURL) { newURL in
-            print("💾 左面板路径变化，准备保存: \(newURL.path)")
-            viewModel.saveWindowPaths(leftPaneURL: leftPaneURL, rightPaneURL: rightPaneURL)
-            
-            // 检查是否为SFTP路径，如果是，加载远程文件列表
-            self.loadRemoteFilesForSFTPURL(newURL)
+            handleURLChange(newURL, pane: .left)
         }
         .onChange(of: rightPaneURL) { newURL in
-            print("💾 右面板路径变化，准备保存: \(newURL.path)")
-            viewModel.saveWindowPaths(leftPaneURL: leftPaneURL, rightPaneURL: rightPaneURL)
-            
-            // 检查是否为SFTP路径，如果是，加载远程文件列表
-            self.loadRemoteFilesForSFTPURL(newURL)
+            handleURLChange(newURL, pane: .right)
         }
-        .onAppear {
-            print("🚀 应用启动，加载收藏夹、SFTP连接记录和路径...")
-            print("🚀 启动时初始路径: 左=\(leftPaneURL.path), 右=\(rightPaneURL.path)")
-            
-            // 获取窗口引用
-            getWindow()
-            
-            loadFavorites()
-            sftpConnections = SFTPConnectionStore.load(fromKey: viewModel.sftpConnectionsKey)
-            
-            // 初始化设备检测
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                print("🔄 初始化外部设备检测...")
-                self.detectExternalDevices()
-                self.setupDeviceMonitoring()
-            }
-            
-            // 延迟加载路径和窗口状态，确保状态已初始化
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                print("🔄 开始延迟加载窗口路径...")
-                
-                let defaults = viewModel.loadWindowPaths(
-                    defaultLeft: leftPaneURL,
-                    defaultRight: rightPaneURL
-                )
-                
-                leftPaneURL = defaults.left
-                rightPaneURL = defaults.right
-                
-                print("📍 最终路径: 左=\(leftPaneURL.path), 右=\(rightPaneURL.path)")
-                
-                // 验证UserDefaults中的值
-                if let savedLeft = UserDefaults.standard.string(forKey: viewModel.leftPaneURLKey),
-                   let savedRight = UserDefaults.standard.string(forKey: viewModel.rightPaneURLKey) {
-                    print("📋 UserDefaults中的保存值: 左=\(savedLeft), 右=\(savedRight)")
+        .onChange(of: leftShowFileSize) { _ in saveFileDisplayOptions() }
+        .onChange(of: leftShowFileDate) { _ in saveFileDisplayOptions() }
+        .onChange(of: leftShowFileType) { _ in saveFileDisplayOptions() }
+        .onChange(of: rightShowFileSize) { _ in saveFileDisplayOptions() }
+        .onChange(of: rightShowFileDate) { _ in saveFileDisplayOptions() }
+        .onChange(of: rightShowFileType) { _ in saveFileDisplayOptions() }
+    }
+    
+    // 工具栏视图
+    private var mainToolbarView: some View {
+        MainToolbarView(
+            activePane: viewModel.activePane,
+            selectedCount: viewModel.getCurrentSelectedItems().count,
+            isShowingHiddenFiles: viewModel.activePane == .left ? viewModel.leftShowHiddenFiles : viewModel.rightShowHiddenFiles,
+            onExit: {
+                NSApplication.shared.terminate(nil)
+            },
+            onSelectPane: { pane in
+                viewModel.setActivePane(pane)
+            },
+            onCopy: {
+                copyItem()
+            },
+            onDelete: {
+                deleteItem()
+            },
+            onMove: {
+                moveItem()
+            },
+            onClearSelection: {
+                viewModel.clearAllSelections()
+            },
+            onNewFolder: {
+                createNewFolder()
+            },
+            onConnectSFTP: {
+                showSFTPConnectionDialog()
+            },
+            onToggleHiddenFiles: {
+                if viewModel.activePane == .left {
+                    viewModel.leftShowHiddenFiles.toggle()
                 } else {
-                    print("📋 UserDefaults中没有找到保存的路径")
+                    viewModel.rightShowHiddenFiles.toggle()
                 }
-                
-                // 加载窗口位置和大小
-                if let window = self.window {
-                    viewModel.restoreWindowFrame(for: window)
-                }
-                
-                // 加载文件信息显示选项
-                viewModel.loadFileDisplayOptions(
-                    leftShowFileSize: &leftShowFileSize,
-                    leftShowFileDate: &leftShowFileDate,
-                    leftShowFileType: &leftShowFileType,
-                    rightShowFileSize: &rightShowFileSize,
-                    rightShowFileDate: &rightShowFileDate,
-                    rightShowFileType: &rightShowFileType
-                )
-            }
-        }
-        
-        // 监听文件信息显示选项的变化并保存
-        .onChange(of: leftShowFileSize) { _ in
-            viewModel.saveFileDisplayOptions(
-                leftShowFileSize: leftShowFileSize,
-                leftShowFileDate: leftShowFileDate,
-                leftShowFileType: leftShowFileType,
-                rightShowFileSize: rightShowFileSize,
-                rightShowFileDate: rightShowFileDate,
-                rightShowFileType: rightShowFileType
-            )
-        }
-        .onChange(of: leftShowFileDate) { _ in
-            viewModel.saveFileDisplayOptions(
-                leftShowFileSize: leftShowFileSize,
-                leftShowFileDate: leftShowFileDate,
-                leftShowFileType: leftShowFileType,
-                rightShowFileSize: rightShowFileSize,
-                rightShowFileDate: rightShowFileDate,
-                rightShowFileType: rightShowFileType
-            )
-        }
-        .onChange(of: leftShowFileType) { _ in
-            viewModel.saveFileDisplayOptions(
-                leftShowFileSize: leftShowFileSize,
-                leftShowFileDate: leftShowFileDate,
-                leftShowFileType: leftShowFileType,
-                rightShowFileSize: rightShowFileSize,
-                rightShowFileDate: rightShowFileDate,
-                rightShowFileType: rightShowFileType
-            )
-        }
-        .onChange(of: rightShowFileSize) { _ in
-            viewModel.saveFileDisplayOptions(
-                leftShowFileSize: leftShowFileSize,
-                leftShowFileDate: leftShowFileDate,
-                leftShowFileType: leftShowFileType,
-                rightShowFileSize: rightShowFileSize,
-                rightShowFileDate: rightShowFileDate,
-                rightShowFileType: rightShowFileType
-            )
-        }
-        .onChange(of: rightShowFileDate) { _ in
-            viewModel.saveFileDisplayOptions(
-                leftShowFileSize: leftShowFileSize,
-                leftShowFileDate: leftShowFileDate,
-                leftShowFileType: leftShowFileType,
-                rightShowFileSize: rightShowFileSize,
-                rightShowFileDate: rightShowFileDate,
-                rightShowFileType: rightShowFileType
-            )
-        }
-        .onChange(of: rightShowFileType) { _ in
-            viewModel.saveFileDisplayOptions(
-                leftShowFileSize: leftShowFileSize,
-                leftShowFileDate: leftShowFileDate,
-                leftShowFileType: leftShowFileType,
-                rightShowFileSize: rightShowFileSize,
-                rightShowFileDate: rightShowFileDate,
-                rightShowFileType: rightShowFileType
-            )
-        }
-        // 添加进度窗口
-        .withProgressWindow(
-            isPresented: $isProgressWindowPresented,
-            progressInfo: $progressInfo,
-            onCancel: { 
-                print("❌ 操作被用户取消")
-                // 这里可以添加取消操作的具体逻辑
             }
         )
-        .overlay(
-            // 复制进度窗口
-            Group {
-                if showCopyProgress, let progress = copyProgress {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            CopyProgressView(progress: progress)
-                                .transition(.opacity.combined(with: .scale))
-                            Spacer()
-                        }
-                        .padding(.bottom, 50) // 距离底部50点
-                        Spacer()
-                    }
-                    .animation(.easeInOut, value: showCopyProgress)
+    }
+    
+    // 主浏览器视图
+    private var mainBrowserView: some View {
+        HStack(spacing: 0) {
+            sidebarView
+                .frame(width: 210) // 强制固定宽度
+                .frame(maxHeight: .infinity) // 填满高度
+                .clipped() // 确保侧边栏不会被覆盖
+                .layoutPriority(1) // 提高布局优先级，确保不被压缩
+            Divider()
+                .frame(width: 1) // 固定分隔线宽度
+            filePanesView
+        }
+        .frame(minWidth: 850, maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
+        .clipped() // 确保整个浏览器视图不会溢出
+        .frame(maxWidth: .infinity, alignment: .leading) // 确保整个浏览器视图左对齐
+    }
+    
+    // 侧边栏视图
+    private var sidebarView: some View {
+        SidebarView(
+            activePane: $viewModel.activePane,
+            leftPaneURL: $leftPaneURL,
+            rightPaneURL: $rightPaneURL,
+            externalDevices: $externalDevices,
+            favorites: $favorites,
+            onEjectDevice: { device in
+                ejectDevice(device: device)
+            },
+            onEjectAllDevices: {
+                ejectAllDevices()
+            },
+            onFavoriteRemoved: { favorite in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    favorites.removeAll { $0.id == favorite.id }
+                    saveFavorites()
                 }
             },
-            alignment: .center
+            onFavoriteReorder: { providers, targetFavorite in
+                handleFavoriteReorder(providers: providers, targetFavorite: targetFavorite)
+            },
+            onDropToFavorites: { providers in
+                handleDrop(providers: providers)
+            }
+        )
+    }
+    
+    // 文件面板视图
+    private var filePanesView: some View {
+        HStack(spacing: 0) {
+            leftFilePane
+                .layoutPriority(0) // 较低的布局优先级，允许被压缩
+            Divider()
+                .frame(width: 1)
+            rightFilePane
+                .layoutPriority(0) // 较低的布局优先级，允许被压缩
+        }
+        .frame(minWidth: 600)
+        .layoutPriority(0) // 文件面板区域整体使用低优先级
+    }
+    
+    // 左侧文件面板
+    private var leftFilePane: some View {
+        ZStack {
+            if viewModel.activePane == .left {
+                Color.blue.opacity(0.25)
+            }
+            
+            FileBrowserPane(
+                currentURL: $leftPaneURL, 
+                showHiddenFiles: $viewModel.leftShowHiddenFiles,
+                selectedItems: $viewModel.leftSelectedItems,
+                isActive: viewModel.activePane == .left,
+                onActivate: { 
+                    print("🔥🔥🔥 左面板被激活了！当前激活: \(viewModel.activePane)")
+                    viewModel.setActivePane(.left)
+                    print("🔥🔥🔥 左面板激活完成！新激活状态: \(viewModel.activePane)")
+                },
+                refreshTrigger: viewModel.refreshTrigger,
+                panelId: "left",
+                showFileSize: $leftShowFileSize,
+                showFileDate: $leftShowFileDate,
+                showFileType: $leftShowFileType
+            )
+        }
+        .frame(minWidth: 300)
+        .frame(maxWidth: .infinity)
+        .clipped() // 确保内容不会超出边界
+    }
+    
+    // 右侧文件面板
+    private var rightFilePane: some View {
+        ZStack {
+            if viewModel.activePane == .right {
+                Color.blue.opacity(0.25)
+            }
+            
+            FileBrowserPane(
+                currentURL: $rightPaneURL, 
+                showHiddenFiles: $viewModel.rightShowHiddenFiles,
+                selectedItems: $viewModel.rightSelectedItems,
+                isActive: viewModel.activePane == .right,
+                onActivate: { 
+                    print("🔥🔥🔥 右面板被激活了！当前激活: \(viewModel.activePane)")
+                    viewModel.setActivePane(.right)
+                    print("🔥🔥🔥 右面板激活完成！新激活状态: \(viewModel.activePane)")
+                },
+                refreshTrigger: viewModel.refreshTrigger,
+                panelId: "right",
+                showFileSize: $rightShowFileSize,
+                showFileDate: $rightShowFileDate,
+                showFileType: $rightShowFileType
+            )
+        }
+        .frame(minWidth: 300)
+        .frame(maxWidth: .infinity)
+        .clipped() // 确保内容不会超出边界
+    }
+    
+    // 复制进度叠加层
+    private var copyProgressOverlay: some View {
+        Group {
+            if showCopyProgress, let progress = copyProgress {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        CopyProgressView(progress: progress)
+                            .transition(.opacity.combined(with: .scale))
+                        Spacer()
+                    }
+                    .padding(.bottom, 50)
+                    Spacer()
+                }
+                .animation(.easeInOut, value: showCopyProgress)
+            }
+        }
+    }
+    
+    // 设置外观
+    private func setupAppearance() {
+        print("🚀 应用启动，加载收藏夹、SFTP连接记录和路径...")
+        print("🚀 启动时初始路径: 左=\(leftPaneURL.path), 右=\(rightPaneURL.path)")
+        
+        // 获取窗口引用
+        getWindow()
+        
+        loadFavorites()
+        sftpConnections = SFTPConnectionStore.load(fromKey: viewModel.sftpConnectionsKey)
+        
+        // 初始化设备检测
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            print("🔄 初始化外部设备检测...")
+            self.detectExternalDevices()
+            self.setupDeviceMonitoring()
+        }
+        
+        // 延迟加载路径和窗口状态，确保状态已初始化
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            loadInitialPaths()
+        }
+    }
+    
+    // 加载初始路径
+    private func loadInitialPaths() {
+        print("🔄 开始延迟加载窗口路径...")
+        
+        let defaults = viewModel.loadWindowPaths(
+            defaultLeft: leftPaneURL,
+            defaultRight: rightPaneURL
+        )
+        
+        leftPaneURL = defaults.left
+        rightPaneURL = defaults.right
+        
+        print("📍 最终路径: 左=\(leftPaneURL.path), 右=\(rightPaneURL.path)")
+        
+        // 验证UserDefaults中的值
+        if let savedLeft = UserDefaults.standard.string(forKey: viewModel.leftPaneURLKey),
+           let savedRight = UserDefaults.standard.string(forKey: viewModel.rightPaneURLKey) {
+            print("📋 UserDefaults中的保存值: 左=\(savedLeft), 右=\(savedRight)")
+        } else {
+            print("📋 UserDefaults中没有找到保存的路径")
+        }
+        
+        // 加载窗口位置和大小
+        if let window = self.window {
+            viewModel.restoreWindowFrame(for: window)
+        }
+        
+        // 加载文件信息显示选项
+        viewModel.loadFileDisplayOptions(
+            leftShowFileSize: &leftShowFileSize,
+            leftShowFileDate: &leftShowFileDate,
+            leftShowFileType: &leftShowFileType,
+            rightShowFileSize: &rightShowFileSize,
+            rightShowFileDate: &rightShowFileDate,
+            rightShowFileType: &rightShowFileType
+        )
+    }
+    
+    // 处理URL变化
+    private func handleURLChange(_ newURL: URL, pane: Pane) {
+        print("💾 \(pane == .left ? "左" : "右")面板路径变化，准备保存: \(newURL.path)")
+        viewModel.saveWindowPaths(leftPaneURL: leftPaneURL, rightPaneURL: rightPaneURL)
+        
+        // 检查是否为SFTP路径，如果是，加载远程文件列表
+        loadRemoteFilesForSFTPURL(newURL)
+    }
+    
+    // 保存文件显示选项
+    private func saveFileDisplayOptions() {
+        viewModel.saveFileDisplayOptions(
+            leftShowFileSize: leftShowFileSize,
+            leftShowFileDate: leftShowFileDate,
+            leftShowFileType: leftShowFileType,
+            rightShowFileSize: rightShowFileSize,
+            rightShowFileDate: rightShowFileDate,
+            rightShowFileType: rightShowFileType
         )
     }
 }
