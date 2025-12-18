@@ -45,7 +45,6 @@ struct MainToolbarView: View {
                     Text("left")
                 }
             }
-            .background(activePane == .left ? Color.accentColor.opacity(0.2) : Color.clear)
             .cornerRadius(6)
             
             Button(action: {
@@ -56,7 +55,7 @@ struct MainToolbarView: View {
                     Text("right")
                 }
             }
-            .background(activePane == .right ? Color.accentColor.opacity(0.2) : Color.clear)
+            
             .cornerRadius(6)
             
             Divider()
@@ -148,5 +147,4 @@ struct MainToolbarView: View {
         .background(Color(.controlBackgroundColor))
     }
 }
-
 

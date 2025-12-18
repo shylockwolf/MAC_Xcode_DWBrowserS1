@@ -235,74 +235,45 @@ extension ContentView {
         print("👤 用户名: \(username)")
         print("📁 路径: \(path)")
         
+        self.isRefreshing = true
+        self.refreshingText = "正在连接…"
         DispatchQueue.global(qos: .userInitiated).async {
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/bin/sftp")
-            task.arguments = ["-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=no", "-P", "\(port)", "\(username)@\(host)"]
-            
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            task.standardError = pipe
-            
-            let inputPipe = Pipe()
-            task.standardInput = inputPipe
-            let inputFileHandle = inputPipe.fileHandleForWriting
-            
-            do {
-                try task.run()
-                
-                if let passwordData = (password + "\n").data(using: .utf8) {
-                    inputFileHandle.write(passwordData)
-                    inputFileHandle.closeFile()
-                }
-                
-                task.waitUntilExit()
-                
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
-                
-                DispatchQueue.main.async {
-                    if task.terminationStatus == 0 {
-                        print("✅ SFTP连接成功")
-                        
-                        SFTPConnectionStore.addOrUpdate(
-                            connections: &self.sftpConnections,
-                            host: host,
-                            port: port,
-                            username: username,
-                            password: password,
-                            path: path,
-                            key: self.viewModel.sftpConnectionsKey
-                        )
-                        
-                        let sftpURL = SFTPService.createVirtualSFTPDirectory(
-                            host: host,
-                            username: username,
-                            password: password,
-                            path: path
-                        ) {
-                            self.viewModel.triggerRefresh()
-                        }
-                        
-                        switch self.viewModel.activePane {
-                        case .left:
-                            self.leftPaneURL = sftpURL
-                        case .right:
-                            self.rightPaneURL = sftpURL
-                        }
-                        
-                        self.showAlertSimple(title: "连接成功", message: "已连接到 \(username)@\(host)")
-                        
-                    } else {
-                        print("❌ SFTP连接失败: \(output)")
-                        self.showAlertSimple(title: "连接失败", message: "无法连接到SFTP服务器\n\n\(output)")
+            let result = SFTPService.testConnection(host: host, port: port, username: username, password: password, path: path)
+            DispatchQueue.main.async {
+                if result.0 {
+                    print("✅ SFTP连接成功")
+                    SFTPConnectionStore.addOrUpdate(
+                        connections: &self.sftpConnections,
+                        host: host,
+                        port: port,
+                        username: username,
+                        password: password,
+                        path: path,
+                        key: self.viewModel.sftpConnectionsKey
+                    )
+                    let sftpURL = SFTPService.createVirtualSFTPDirectory(
+                        host: host,
+                        port: port,
+                        username: username,
+                        password: password,
+                        path: path
+                    ) {
+                        self.viewModel.triggerRefresh()
+                        self.isRefreshing = false
+                        self.refreshingText = "刷新中…"
                     }
-                }
-                
-            } catch {
-                print("❌ 启动SFTP进程失败: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.showAlertSimple(title: "连接失败", message: "无法启动SFTP连接: \(error.localizedDescription)")
+                    switch self.viewModel.activePane {
+                    case .left:
+                        self.leftPaneURL = sftpURL
+                    case .right:
+                        self.rightPaneURL = sftpURL
+                    }
+                    self.showAlertSimple(title: "连接成功", message: "已连接到 \(username)@\(host)")
+                } else {
+                    print("❌ SFTP连接失败: \(result.1)")
+                    self.showAlertSimple(title: "连接失败", message: "无法连接到SFTP服务器\n\n\(result.1)")
+                    self.isRefreshing = false
+                    self.refreshingText = "刷新中…"
                 }
             }
         }
@@ -310,8 +281,11 @@ extension ContentView {
     
     // 当URL变化时检查并加载SFTP子目录文件列表（委托给 SFTPService）
     func loadRemoteFilesForSFTPURL(_ url: URL) {
+        self.isRefreshing = true
+        self.refreshingText = "刷新中…"
         SFTPService.loadRemoteFilesForSFTPURL(url) {
             self.viewModel.triggerRefresh()
+            self.isRefreshing = false
         }
     }
     
@@ -323,5 +297,3 @@ extension ContentView {
         }
     }
 }
-
-

@@ -45,6 +45,8 @@ struct ContentView: View {
     // 复制进度相关
     @State var copyProgress: CopyProgress?
     @State var showCopyProgress = false
+    @State var isRefreshing = false
+    @State var refreshingText = "刷新中…"
     
     // 外部设备列表
     @State var externalDevices: [ExternalDevice] = []
@@ -318,6 +320,10 @@ struct ContentView: View {
                 copyProgressOverlay,
                 alignment: .center
             )
+            .overlay(
+                refreshingOverlay,
+                alignment: .center
+            )
     }
     
     // 主内容视图
@@ -447,10 +453,6 @@ struct ContentView: View {
     // 左侧文件面板
     private var leftFilePane: some View {
         ZStack {
-            if viewModel.activePane == .left {
-                Color.blue.opacity(0.25)
-            }
-            
             FileBrowserPane(
                 currentURL: $leftPaneURL, 
                 showHiddenFiles: $viewModel.leftShowHiddenFiles,
@@ -476,10 +478,6 @@ struct ContentView: View {
     // 右侧文件面板
     private var rightFilePane: some View {
         ZStack {
-            if viewModel.activePane == .right {
-                Color.blue.opacity(0.25)
-            }
-            
             FileBrowserPane(
                 currentURL: $rightPaneURL, 
                 showHiddenFiles: $viewModel.rightShowHiddenFiles,
@@ -518,6 +516,33 @@ struct ContentView: View {
                     Spacer()
                 }
                 .animation(.easeInOut, value: showCopyProgress)
+            }
+        }
+    }
+
+    private var refreshingOverlay: some View {
+        Group {
+            if isRefreshing {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text(refreshingText)
+                                .font(.headline)
+                        }
+                        .padding(16)
+                        .background(Color.black.opacity(0.6))
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                        Spacer()
+                    }
+                    .padding(.bottom, 50)
+                    Spacer()
+                }
+                .transition(.opacity)
+                .animation(.easeInOut, value: isRefreshing)
             }
         }
     }
@@ -590,7 +615,9 @@ struct ContentView: View {
         viewModel.saveWindowPaths(leftPaneURL: leftPaneURL, rightPaneURL: rightPaneURL)
         
         // 检查是否为SFTP路径，如果是，加载远程文件列表
-        loadRemoteFilesForSFTPURL(newURL)
+        if newURL.path.contains("DWBrowser_SFTP_Cache") {
+            loadRemoteFilesForSFTPURL(newURL)
+        }
     }
     
     // 保存文件显示选项

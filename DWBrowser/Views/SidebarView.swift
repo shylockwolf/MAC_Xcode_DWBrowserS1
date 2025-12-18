@@ -44,8 +44,8 @@ struct SidebarView: View {
                         .padding(.vertical, 4)
                     }
                     .buttonStyle(PlainButtonStyle())
-                }
-            }
+        }
+    }
             .padding(.horizontal, 12)
             .padding(.top, 8)
             
@@ -236,8 +236,7 @@ struct SidebarView: View {
             Spacer()
         }
         .frame(width: 210)
-        .background(Color(white: 0.95))
+        .background(Color(.controlBackgroundColor))
+        .overlay(Divider(), alignment: .trailing)
     }
 }
-
-

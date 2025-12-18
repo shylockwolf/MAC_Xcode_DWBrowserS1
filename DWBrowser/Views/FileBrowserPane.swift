@@ -112,6 +112,15 @@ struct FileBrowserPane: View {
     
     // 获取文件大小的辅助函数
     private func getFileSize(_ url: URL) -> Int64 {
+        if url.path.contains("DWBrowser_SFTP_Cache") {
+            let dir = url.deletingLastPathComponent()
+            let metaURL = dir.appendingPathComponent(".sftp_meta.json")
+            if let data = try? Data(contentsOf: metaURL),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let val = obj[url.lastPathComponent] as? NSNumber {
+                return val.int64Value
+            }
+        }
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
             return attributes[.size] as? Int64 ?? 0
@@ -427,7 +436,7 @@ struct FileBrowserPane: View {
                             HStack(spacing: 4) {
                                 Text(component.name)
                                     .font(.system(.body, design: .monospaced))
-                                    .foregroundColor(isActive ? .blue.opacity(0.7) : .secondary)
+                                    .foregroundColor(.primary)
                                     .contentShape(Rectangle())
                                     .onTapGesture {
                                         onActivate()
@@ -437,7 +446,7 @@ struct FileBrowserPane: View {
                                     
                                 if index < pathComponents.count - 1 {
                                     Text("/")
-                                        .foregroundColor(isActive ? .secondary : .gray)
+                                        .foregroundColor(.secondary)
                                         .font(.system(.body, design: .monospaced))
                                 }
                             }
@@ -448,7 +457,7 @@ struct FileBrowserPane: View {
                     Spacer()
                     Text("\(items.count) items")
                         .font(.caption)
-                        .foregroundColor(isActive ? .primary : .secondary)
+                        .foregroundColor(.primary)
                 }
                 .padding(.horizontal, 8)
                 .background(Color(.controlBackgroundColor))
@@ -814,4 +823,3 @@ struct FileBrowserPane: View {
         }
     }
 }
-

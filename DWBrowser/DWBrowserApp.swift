@@ -28,7 +28,7 @@ struct DWBrowserApp: App {
     private func showAboutDialog() {
         let alert = NSAlert()
         alert.messageText = "DWBrowser"
-        alert.informativeText = "Version v1.0\n\nAuthor: Shylock Wolf\nCreation Date: 2025-11-17"
+        alert.informativeText = "Version v1.1\n\nAuthor: Shylock Wolf\nCreation Date: 2025-12-18"
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
