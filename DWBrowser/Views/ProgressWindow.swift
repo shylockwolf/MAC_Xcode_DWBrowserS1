@@ -22,48 +22,36 @@ struct ProgressWindow: View {
     @State private var timer: Timer?
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 10) {
             // 标题
             Text(progressInfo.title)
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.medium)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             // 进度条
             ProgressView(value: progressInfo.progress, total: 1.0)
                 .progressViewStyle(LinearProgressViewStyle())
-                .frame(height: 24)
+                .frame(height: 16)
             
             // 进度信息
             HStack {
                 Text("进度: \(Int(progressInfo.progress * 100))%")
-                    .font(.subheadline)
+                    .font(.caption)
                 Spacer()
                 
                 if progressInfo.isCompleted {
                     Text("完成")
-                        .font(.subheadline)
+                        .font(.caption)
                         .foregroundColor(.green)
                 } else if progressInfo.isCancelled {
                     Text("已取消")
-                        .font(.subheadline)
+                        .font(.caption)
                         .foregroundColor(.red)
                 } else if let errorMessage = progressInfo.errorMessage {
                     Text(errorMessage)
-                        .font(.subheadline)
+                        .font(.caption)
                         .foregroundColor(.red)
-                } else {
-                    Text("速度: \(formatBytes(bytes: progressInfo.bytesPerSecond))/s")
-                        .font(.subheadline)
-                }
-            }
-            
-            // 剩余时间
-            if !progressInfo.isCompleted && !progressInfo.isCancelled && progressInfo.errorMessage == nil {
-                HStack {
-                    Spacer()
-                    Text("剩余时间: \(formatTime(interval: progressInfo.estimatedTimeRemaining))")
-                        .font(.subheadline)
                 }
             }
             
@@ -77,22 +65,24 @@ struct ProgressWindow: View {
                         onCancel?()
                     }) {
                         Text("取消")
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
+                            .font(.caption)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
                     }
                 } else {
                     Button(action: {
                         // 可以添加关闭窗口的逻辑
                     }) {
                         Text("确定")
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
+                            .font(.caption)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
                     }
                 }
             }
         }
-        .padding(12)
-        .frame(minWidth: 300, minHeight: 144)
+        .padding(6)
+        .frame(minWidth: 300, minHeight: 75)
         .background(Color(NSColor.windowBackgroundColor))
         .cornerRadius(8)
         .shadow(radius: 12)
